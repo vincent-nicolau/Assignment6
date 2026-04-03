@@ -3,10 +3,21 @@ using Microsoft.Extensions.DependencyInjection;
 using RazorPagesMovie.Data;
 using RazorPagesMovie.Models;
 using Microsoft.AspNetCore.Identity;
+using RazorPagesMovie.Helpers;
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
-builder.Services.AddRazorPages();
+builder.Services.AddAuthorization(options =>
+{
+    options.AddPolicy("AdminPolicy", policy =>
+    {
+        policy.RequireRole("Admin");
+    });
+});
+builder.Services.AddRazorPages(options =>
+{
+    options.Conventions.AuthorizeFolder("/Movies", "AdminPolicy");
+});
 builder.Services.AddDbContext<RazorPagesMovieContext>(options =>
     options.UseSqlServer(builder.Configuration.GetConnectionString("RazorPagesMovieContext") ?? throw new InvalidOperationException("Connection string 'RazorPagesMovieContext' not found.")));
 
@@ -44,30 +55,7 @@ app.MapRazorPages()
 
 using (var scope = app.Services.CreateScope())
 {
-    var roleManager =
-    scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-
-    if (!await roleManager.RoleExistsAsync("Admin"))
-    {
-        await roleManager.CreateAsync(new IdentityRole("Admin"));
-    }
-
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
-
-    string email = "admin@vnvn.com";
-    string password = "Admin@123";
-
-    if (await userManager.FindByEmailAsync(email) == null)
-    {
-        var user = new IdentityUser
-        {
-            UserName = email,
-            Email = email,
-            EmailConfirmed = true
-        };
-
-        await userManager.CreateAsync(user, password);
-        await userManager.AddToRoleAsync(user, "Admin");
-    }
+    await AdminHelper.SeedAdminAsync(scope.ServiceProvider);
 }
+
 app.Run();
